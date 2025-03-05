@@ -1,104 +1,367 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>영어 독해 문제 생성기</title>
-  <style>
-    body {
-      font-family: 'Malgun Gothic', Arial, sans-serif;
-      background-color: #f8f9fa;
-      margin: 0;
-      padding: 20px;
-    }
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-      background: #fff;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-    h1 {
-      text-align: center;
-      color: #007bff;
-    }
-    textarea {
-      width: 100%;
-      margin-bottom: 15px;
-      font-size: 16px;
-      padding: 8px;
-    }
-    button {
-      background-color: #007bff;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 16px;
-      margin-top: 10px;
-    }
-    button:hover {
-      background-color: #0056b3;
-    }
-    /* 문제 표시 영역 */
-    #questionOutput {
-      white-space: pre-line;
-      margin-top: 20px;
-      padding: 10px;
-      background: #f0f0f0;
-      border-radius: 5px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>영어 독해 문제 생성기</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', Arial, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #007bff;
+        }
+        .tabs {
+            display: flex;
+            justify-content: center;
+            background: #007bff;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .tabs button {
+            background: none;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .tabs button:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .section {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            background: #ffffff;
+            box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
+        }
+        textarea, input[type="file"], input[type="number"] {
+            width: 100%;
+            margin-bottom: 15px;
+            font-size: 16px;
+            padding: 8px;
+        }
+        label {
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        /* 문제 풀기 화면 스타일 */
+        #full-passage {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #e0f7fa;
+            border-radius: 5px;
+        }
+        #question-form .question-block {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+        #question-form .question-block p {
+            margin: 5px 0;
+        }
+        /* 정답 섹션 초기 감춤 */
+        #answer-section {
+            display: none;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e8e8e8;
+            border-radius: 5px;
+        }
+        /* 인쇄 미디어용 스타일 (필요 시 추가) */
+        @media print {
+            .tabs, button { display: none; }
+            .container { box-shadow: none; }
+        }
+    </style>
+    <!-- 라이브러리 포함 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.4/tesseract.min.js"></script>
+    <script>
+        function showSection(sectionId) {
+            const sections = ["upload", "generate", "practice"];
+            sections.forEach(id => {
+                const section = document.getElementById(id);
+                if (section) {
+                    section.style.display = (id === sectionId) ? "block" : "none";
+                }
+            });
+            if (sectionId === 'practice') {
+                document.getElementById("display-passage").textContent = document.getElementById("passage").value;
+            }
+        }
+    </script>
 </head>
 <body>
-<div class="container">
-  <h1>영어 독해 문제 생성기</h1>
+    <div class="container">
+        <h1>영어 독해 문제 생성기</h1>
+        <div class="tabs">
+            <button onclick="showSection('upload')">지문 업로드</button>
+            <button onclick="showSection('generate')">문제 생성</button>
+            <button onclick="showSection('practice')">문제 풀기</button>
+        </div>
+        <!-- 지문 업로드 섹션 -->
+        <div id="upload" class="section">
+            <h2>지문 업로드</h2>
+            <textarea id="passage" placeholder="지문을 입력하세요..." rows="6"></textarea>
+            <input type="file" id="imageInput" accept="image/*">
+            <button onclick="handleImageUpload()">이미지에서 텍스트 추출 후 입력</button>
+            <button onclick="showSection('generate')">입력 완료</button>
+        </div>
+        <!-- 문제 생성 섹션 -->
+        <div id="generate" class="section" style="display:none;">
+            <h2>문제 유형 선택 및 문항 수</h2>
+            <h3>수능 유형</h3>
+            <label><input type="checkbox" class="problem-type" value="빈칸 추론"> 빈칸 추론</label>
+            <label><input type="checkbox" class="problem-type" value="어법성 판단"> 어법성 판단</label>
+            <label><input type="checkbox" class="problem-type" value="문장 삽입"> 문장 삽입</label>
+            <label><input type="checkbox" class="problem-type" value="글의 순서 배열"> 글의 순서 배열</label>
+            <label><input type="checkbox" class="problem-type" value="주제/요지/제목 찾기"> 주제/요지/제목 찾기</label>
+            <label><input type="checkbox" class="problem-type" value="연결어 넣기"> 연결어 넣기</label>
+            <h3>기타 유형</h3>
+            <label><input type="checkbox" class="problem-type" value="동의어/반의어 찾기"> 동의어/반의어 찾기</label>
+            <label><input type="checkbox" class="problem-type" value="뜻 추론"> 뜻 추론</label>
+            <label><input type="checkbox" class="problem-type" value="문맥 속 단어 의미 파악"> 문맥 속 단어 의미 파악</label>
+            <label><input type="checkbox" class="problem-type" value="능동/수동 전환"> 능동/수동 전환</label>
+            <label><input type="checkbox" class="problem-type" value="간접/직접화법 변환"> 간접/직접화법 변환</label>
+            <label><input type="checkbox" class="problem-type" value="영어→한국어 번역"> 영어→한국어 번역</label>
+            <label><input type="checkbox" class="problem-type" value="한국어→영어 번역"> 한국어→영어 번역</label>
+            <br>
+            <label>전체 문항 수: <input type="number" id="totalQuestions" value="1" min="1"></label>
+            <br>
+            <button onclick="generateQuestion()">선택 완료</button>
+        </div>
+        <!-- 문제 풀기 및 채점 섹션 -->
+        <div id="practice" class="section" style="display:none;">
+            <h2>문제 풀기</h2>
+            <!-- 전체 지문 항상 표시 -->
+            <div id="full-passage">
+                <strong>전체 지문:</strong>
+                <p id="display-passage"></p>
+            </div>
+            <!-- 문제 폼 -->
+            <div id="pdf-content">
+                <form id="question-form">
+                    <!-- 동적으로 생성된 문제들이 여기에 추가됩니다 -->
+                </form>
+            </div>
+            <div id="control-buttons" style="margin-top:20px;">
+                <button type="button" onclick="submitAnswers()">정답 제출</button>
+                <button type="button" onclick="resetTest()">Reset (재응시)</button>
+            </div>
+            <div id="result" style="margin-top:10px; font-weight:bold;"></div>
+            <!-- 정답 섹션 (채점 후 표시) -->
+            <div id="answer-section">
+                <strong>정답 모음:</strong>
+                <pre id="answers"></pre>
+            </div>
+            <!-- PDF 다운로드 버튼 대신 인쇄 버튼 추가 -->
+            <button onclick="printPage()">웹페이지 인쇄</button>
+        </div>
+    </div>
   
-  <!-- 지문 입력 영역 -->
-  <textarea id="textInput" rows="6" placeholder="지문을 입력하세요..."></textarea>
-  <button id="submitBtn">문제 생성</button>
-  
-  <!-- 생성된 문제 표시 -->
-  <div id="questionOutput">여기에 생성된 문제가 표시됩니다.</div>
-</div>
+    <script>
+        // Cloudflare Worker 주소 (예: 'https://your-worker-id.workers.dev/api/generate')
+        const WORKER_GENERATE_URL = "https://wordorigin.sehyunglee2015.workers.dev/api/generate";
 
-<!-- JS 로직을 html에 직접 포함 -->
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const textInput = document.getElementById("textInput");
-  const submitBtn = document.getElementById("submitBtn");
-  const questionOutput = document.getElementById("questionOutput");
+        let lastRequestTime = 0;
+        const requestInterval = 15000; // 15초 간격
+        let correctAnswers = [];
+        let originalQuestionsHTML = "";
 
-  submitBtn.addEventListener("click", async () => {
-    const passage = textInput.value.trim();
-    if (!passage) {
-      alert("지문을 입력하세요.");
-      return;
-    }
+        async function generateQuestion() {
+            const passage = document.getElementById("passage").value.trim();
+            if (!passage) {
+                alert("지문을 입력하세요.");
+                return;
+            }
+            const checkboxes = document.querySelectorAll('.problem-type:checked');
+            let selectedTypes = Array.from(checkboxes).map(cb => cb.value);
+            if (selectedTypes.length === 0) {
+                alert("적어도 하나의 문제 유형을 선택해 주세요.");
+                return;
+            }
+            const totalQuestions = parseInt(document.getElementById("totalQuestions").value);
+            if (isNaN(totalQuestions) || totalQuestions < selectedTypes.length) {
+                alert("전체 문항 수는 선택된 문제 유형 수 이상이어야 합니다.");
+                return;
+            }
 
-    try {
-      // Cloudflare Worker의 /api/generate 엔드포인트로 요청
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passage }),
-      });
+            const currentTime = Date.now();
+            if (currentTime - lastRequestTime < requestInterval) {
+                alert("너무 자주 요청하고 있습니다. 잠시 후 다시 시도해주세요.");
+                return;
+            }
+            lastRequestTime = currentTime;
 
-      if (!response.ok) {
-        const msg = await response.text();
-        throw new Error(`서버 오류: ${response.status} / ${msg}`);
-      }
+            // Cloudflare Worker로 요청
+            try {
+                const response = await fetch(WORKER_GENERATE_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        passage,
+                        selectedTypes,
+                        totalQuestions
+                    })
+                });
 
-      const data = await response.json();
-      questionOutput.textContent = data.result || "문제 생성 실패";
-    } catch (err) {
-      console.error("문제 생성 중 오류:", err);
-      alert("문제 생성에 실패했습니다. 콘솔을 확인하세요.");
-    }
-  });
-});
-</script>
+                if (!response.ok) {
+                    const msg = await response.text();
+                    throw new Error(`서버 오류: ${response.status} / ${msg}`);
+                }
+
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                const resultJSON = data.resultJSON;
+                if (!resultJSON || !resultJSON.questions) {
+                    alert("문제 생성 결과가 올바르지 않습니다.");
+                    return;
+                }
+
+                const questionForm = document.getElementById("question-form");
+                questionForm.innerHTML = "";
+                correctAnswers = [];
+
+                // 동적으로 문제 폼 생성
+                resultJSON.questions.forEach((q) => {
+                    const qDiv = document.createElement("div");
+                    qDiv.className = "question-block";
+
+                    let parts = q.question.split("\n");
+                    const instruction = parts[0].trim();
+                    const bodyText = parts.slice(1).join("\n").trim();
+
+                    const numP = document.createElement("p");
+                    numP.textContent = q.number + ". " + instruction;
+                    qDiv.appendChild(numP);
+
+                    const bodyP = document.createElement("p");
+                    bodyP.textContent = bodyText;
+                    qDiv.appendChild(bodyP);
+
+                    qDiv.appendChild(document.createElement("br"));
+
+                    q.choices.forEach((choice) => {
+                        const label = document.createElement("label");
+                        label.style.display = "block";
+                        const radio = document.createElement("input");
+                        radio.type = "radio";
+                        radio.name = "q" + q.number;
+                        radio.value = choice.slice(0, 2);
+                        label.appendChild(radio);
+                        label.appendChild(document.createTextNode(" " + choice));
+                        qDiv.appendChild(label);
+                    });
+
+                    questionForm.appendChild(qDiv);
+                });
+
+                correctAnswers = resultJSON.answers || [];
+                document.getElementById("display-passage").textContent = passage;
+                originalQuestionsHTML = questionForm.innerHTML;
+                document.getElementById("answers").textContent = correctAnswers.map((ans, i) => (i+1) + "번: " + ans).join("\n");
+                document.getElementById("answer-section").style.display = "none";
+                document.getElementById("result").textContent = "";
+                showSection('practice');
+            } catch (err) {
+                console.error("문제 생성 중 오류:", err);
+                alert("문제 생성에 실패했습니다: " + err.message);
+            }
+        }
+
+        function submitAnswers() {
+            const questionBlocks = document.querySelectorAll("#question-form .question-block");
+            let score = 0;
+            questionBlocks.forEach((block, idx) => {
+                const radios = block.querySelectorAll("input[type='radio']");
+                let selected = "";
+                radios.forEach(radio => {
+                    if (radio.checked) selected = radio.value;
+                });
+                const resultP = document.createElement("p");
+                if (selected === correctAnswers[idx]) {
+                    resultP.textContent = "문제 " + (idx+1) + ": 정답";
+                    resultP.style.color = "green";
+                    score++;
+                } else {
+                    resultP.textContent = "문제 " + (idx+1) + ": 오답 (정답: " + correctAnswers[idx] + ")";
+                    resultP.style.color = "red";
+                }
+                block.appendChild(resultP);
+            });
+            document.getElementById("result").textContent = "총 " + questionBlocks.length + "문항 중 " + score + "문항 정답";
+            document.getElementById("answer-section").style.display = "block";
+        }
+
+        function resetTest() {
+            document.getElementById("question-form").innerHTML = originalQuestionsHTML;
+            document.getElementById("result").textContent = "";
+            document.getElementById("answer-section").style.display = "none";
+        }
+
+        function printPage() {
+            window.print();
+        }
+        window.generateQuestion = generateQuestion;
+        window.submitAnswers = submitAnswers;
+        window.resetTest = resetTest;
+        window.printPage = printPage;
+    </script>
+    <script>
+        async function handleImageUpload() {
+            const imageInput = document.getElementById('imageInput');
+            const passageTextarea = document.getElementById('passage');
+        
+            if (imageInput.files && imageInput.files[0]) {
+                const imageFile = imageInput.files[0];
+                try {
+                    const { data: { text } } = await Tesseract.recognize(
+                        imageFile,
+                        'eng', // 영어 OCR
+                        { logger: m => console.log(m) }
+                    );
+                    passageTextarea.value = text;
+                    alert('이미지에서 텍스트 추출 완료!');
+                } catch (error) {
+                    console.error("OCR Error:", error);
+                    alert('이미지에서 텍스트를 추출하는 데 실패했습니다.');
+                }
+            } else {
+                alert('이미지 파일을 선택해주세요.');
+            }
+        }
+        window.handleImageUpload = handleImageUpload;
+    </script>
 </body>
 </html>
