@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>영어 독해 문제 생성기</title>
+  <style>
+    body {
+      font-family: 'Malgun Gothic', Arial, sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #007bff;
+    }
+    textarea {
+      width: 100%;
+      margin-bottom: 15px;
+      font-size: 16px;
+      padding: 8px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    /* 문제 표시 영역 */
+    #questionOutput {
+      white-space: pre-line;
+      margin-top: 20px;
+      padding: 10px;
+      background: #f0f0f0;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>영어 독해 문제 생성기</h1>
+  
+  <!-- 지문 입력 영역 -->
+  <textarea id="textInput" rows="6" placeholder="지문을 입력하세요..."></textarea>
+  <button id="submitBtn">문제 생성</button>
+  
+  <!-- 생성된 문제 표시 -->
+  <div id="questionOutput">여기에 생성된 문제가 표시됩니다.</div>
+</div>
+
+<!-- JS 로직을 html에 직접 포함 -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const textInput = document.getElementById("textInput");
+  const submitBtn = document.getElementById("submitBtn");
+  const questionOutput = document.getElementById("questionOutput");
+
+  submitBtn.addEventListener("click", async () => {
+    const passage = textInput.value.trim();
+    if (!passage) {
+      alert("지문을 입력하세요.");
+      return;
+    }
+
+    try {
+      // Cloudflare Worker의 /api/generate 엔드포인트로 요청
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passage }),
+      });
+
+      if (!response.ok) {
+        const msg = await response.text();
+        throw new Error(`서버 오류: ${response.status} / ${msg}`);
+      }
+
+      const data = await response.json();
+      questionOutput.textContent = data.result || "문제 생성 실패";
+    } catch (err) {
+      console.error("문제 생성 중 오류:", err);
+      alert("문제 생성에 실패했습니다. 콘솔을 확인하세요.");
+    }
+  });
+});
+</script>
+</body>
+</html>
