@@ -118,9 +118,6 @@
             }
         }
     </script>
-
-
-    
 </head>
 <body>
     <div class="container">
@@ -141,21 +138,14 @@
         <!-- 문제 생성 섹션 -->
         <div id="generate" class="section" style="display:none;">
             <h2>문제 유형 선택 및 문항 수</h2>
-            <h3>수능 유형</h3>
+            <!-- 사용자가 요청한 7가지 유형만 -->
+            <label><input type="checkbox" class="problem-type" value="주제 및 목적 파악"> 주제 및 목적 파악</label>
+            <label><input type="checkbox" class="problem-type" value="세부 내용 이해"> 세부 내용 이해</label>
+            <label><input type="checkbox" class="problem-type" value="논리적 관계 파악"> 논리적 관계 파악</label>
+            <label><input type="checkbox" class="problem-type" value="어휘 추론"> 어휘 추론</label>
             <label><input type="checkbox" class="problem-type" value="빈칸 추론"> 빈칸 추론</label>
-            <label><input type="checkbox" class="problem-type" value="어법성 판단"> 어법성 판단</label>
-            <label><input type="checkbox" class="problem-type" value="문장 삽입"> 문장 삽입</label>
-            <label><input type="checkbox" class="problem-type" value="글의 순서 배열"> 글의 순서 배열</label>
-            <label><input type="checkbox" class="problem-type" value="주제/요지/제목 찾기"> 주제/요지/제목 찾기</label>
-            <label><input type="checkbox" class="problem-type" value="연결어 넣기"> 연결어 넣기</label>
-            <h3>기타 유형</h3>
-            <label><input type="checkbox" class="problem-type" value="동의어/반의어 찾기"> 동의어/반의어 찾기</label>
-            <label><input type="checkbox" class="problem-type" value="뜻 추론"> 뜻 추론</label>
-            <label><input type="checkbox" class="problem-type" value="문맥 속 단어 의미 파악"> 문맥 속 단어 의미 파악</label>
-            <label><input type="checkbox" class="problem-type" value="능동/수동 전환"> 능동/수동 전환</label>
-            <label><input type="checkbox" class="problem-type" value="간접/직접화법 변환"> 간접/직접화법 변환</label>
-            <label><input type="checkbox" class="problem-type" value="영어→한국어 번역"> 영어→한국어 번역</label>
-            <label><input type="checkbox" class="problem-type" value="한국어→영어 번역"> 한국어→영어 번역</label>
+            <label><input type="checkbox" class="problem-type" value="글의 순서 파악"> 글의 순서 파악</label>
+            <label><input type="checkbox" class="problem-type" value="지시 대상 파악"> 지시 대상 파악</label>
             <br>
             <label>전체 문항 수: <input type="number" id="totalQuestions" value="1" min="1"></label>
             <br>
@@ -189,178 +179,169 @@
             <button onclick="printPage()">웹페이지 인쇄</button>
         </div>
     </div>
+  
+    <script>
+        const WORKER_GENERATE_URL = "https://readingquiz.sehyunglee2015.workers.dev/api/generate";
 
+        let lastRequestTime = 0;
+        const requestInterval = 15000; // 15초 간격
+        let correctAnswers = [];
+        let originalQuestionsHTML = "";
 
-
-<script>
-    const WORKER_GENERATE_URL = "https://readingquiz.sehyunglee2015.workers.dev/api/generate";
-    
-    let lastRequestTime = 0;
-    const requestInterval = 15000;
-    let correctAnswers = [];
-    let originalQuestionsHTML = "";
-
-    async function generateQuestion() {
-        const passage = document.getElementById("passage").value.trim();
-        if (!passage) {
-            alert("지문을 입력하세요.");
-            return;
-        }
-        const checkboxes = document.querySelectorAll('.problem-type:checked');
-        let selectedTypes = Array.from(checkboxes).map(cb => cb.value);
-        if (selectedTypes.length === 0) {
-            alert("적어도 하나의 문제 유형을 선택해 주세요.");
-            return;
-        }
-        const totalQuestions = parseInt(document.getElementById("totalQuestions").value);
-        if (isNaN(totalQuestions) || totalQuestions < selectedTypes.length) {
-            alert("전체 문항 수는 선택된 문제 유형 수 이상이어야 합니다.");
-            return;
-        }
-
-        // 요청 간격
-        const currentTime = Date.now();
-        if (currentTime - lastRequestTime < requestInterval) {
-            alert("너무 자주 요청하고 있습니다. 잠시 후 다시 시도해주세요.");
-            return;
-        }
-        lastRequestTime = currentTime;
-
-        try {
-            const response = await fetch(WORKER_GENERATE_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ passage, selectedTypes, totalQuestions })
-            });
-            if (!response.ok) {
-                const msg = await response.text();
-                throw new Error(`서버 오류: ${response.status} / ${msg}`);
+        async function generateQuestion() {
+            const passage = document.getElementById("passage").value.trim();
+            if (!passage) {
+                alert("지문을 입력하세요.");
+                return;
             }
-
-            const data = await response.json();
-            if (data.error) {
-                throw new Error(data.error);
+            // 체크된 문제 유형(7가지 중 선택된 것)
+            const checkboxes = document.querySelectorAll('.problem-type:checked');
+            let selectedTypes = Array.from(checkboxes).map(cb => cb.value);
+            if (selectedTypes.length === 0) {
+                alert("적어도 하나의 문제 유형을 선택해 주세요.");
+                return;
             }
-
-            const resultJSON = data.resultJSON;
-            if (!resultJSON || !resultJSON.questions) {
-                alert("문제 생성 결과가 올바르지 않습니다.");
+            const totalQuestions = parseInt(document.getElementById("totalQuestions").value);
+            if (isNaN(totalQuestions) || totalQuestions < selectedTypes.length) {
+                alert("전체 문항 수는 선택된 문제 유형 수 이상이어야 합니다.");
                 return;
             }
 
-            // 문제 폼 구성
-            const questionForm = document.getElementById("question-form");
-            questionForm.innerHTML = "";
-            
-            // 새 correctAnswers 저장
-            correctAnswers = resultJSON.answers || [];
+            const currentTime = Date.now();
+            if (currentTime - lastRequestTime < requestInterval) {
+                alert("너무 자주 요청하고 있습니다. 잠시 후 다시 시도해주세요.");
+                return;
+            }
+            lastRequestTime = currentTime;
 
-            resultJSON.questions.forEach((q, idx) => {
-                const qDiv = document.createElement("div");
-                qDiv.className = "question-block";
-
-                // 문제 번호 / 본문
-                let parts = q.question.split("\n");
-                const instruction = parts[0]?.trim() || "";
-                const bodyText = parts.slice(1).join("\n").trim();
-
-                const numP = document.createElement("p");
-                numP.textContent = q.number + ". " + instruction;
-                qDiv.appendChild(numP);
-
-                const bodyP = document.createElement("p");
-                bodyP.textContent = bodyText;
-                qDiv.appendChild(bodyP);
-
-                qDiv.appendChild(document.createElement("br"));
-
-                // 라디오 버튼
-                q.choices.forEach((choice) => {
-                    const label = document.createElement("label");
-                    label.style.display = "block";
-                    
-                    const radio = document.createElement("input");
-                    radio.type = "radio";
-                    radio.name = "q" + q.number;
-
-                    // 맨 첫 단어(① 등)를 value로
-                    const prefix = choice.trim().split(" ")[0];
-                    radio.value = prefix;
-
-                    label.appendChild(radio);
-                    label.appendChild(document.createTextNode(" " + choice));
-                    qDiv.appendChild(label);
+            try {
+                const response = await fetch(WORKER_GENERATE_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        passage,
+                        selectedTypes,
+                        totalQuestions
+                    })
                 });
 
-                questionForm.appendChild(qDiv);
-            });
+                if (!response.ok) {
+                    const msg = await response.text();
+                    throw new Error(`서버 오류: ${response.status} / ${msg}`);
+                }
 
-            // 지문 표시
-            document.getElementById("display-passage").textContent = passage;
-            // 문제 폼 HTML 저장(리셋용)
-            originalQuestionsHTML = questionForm.innerHTML;
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
 
-            // 정답 리스트 표시 준비
-            document.getElementById("answers").textContent =
-                correctAnswers.map((ans, i) => (i + 1) + "번: " + ans).join("\n");
+                const resultJSON = data.resultJSON;
+                if (!resultJSON || !resultJSON.questions) {
+                    alert("문제 생성 결과가 올바르지 않습니다.");
+                    return;
+                }
 
-            document.getElementById("answer-section").style.display = "none";
-            document.getElementById("result").textContent = "";
-            showSection('practice');
-        } catch (err) {
-            console.error("문제 생성 중 오류:", err);
-            alert("문제 생성에 실패했습니다: " + err.message);
-        }
-    }
+                const questionForm = document.getElementById("question-form");
+                questionForm.innerHTML = "";
+                correctAnswers = [];
 
-    function submitAnswers() {
-        const questionBlocks = document.querySelectorAll("#question-form .question-block");
-        let score = 0;
+                resultJSON.questions.forEach((q) => {
+                    const qDiv = document.createElement("div");
+                    qDiv.className = "question-block";
 
-        questionBlocks.forEach((block, idx) => {
-            const radios = block.querySelectorAll("input[type='radio']");
-            let selected = "";
-            radios.forEach(radio => {
-                if (radio.checked) selected = radio.value.trim();
-            });
+                    let parts = q.question.split("\n");
+                    const instruction = parts[0]?.trim() || "";
+                    const bodyText = parts.slice(1).join("\n").trim();
 
-            const correct = (correctAnswers[idx] || "").trim();
-            const resultP = document.createElement("p");
+                    const numP = document.createElement("p");
+                    numP.textContent = q.number + ". " + instruction;
+                    qDiv.appendChild(numP);
 
-            if (selected === correct) {
-                resultP.textContent = "문제 " + (idx+1) + ": 정답";
-                resultP.style.color = "green";
-                score++;
-            } else {
-                resultP.textContent = `문제 ${idx+1}: 오답 (정답: ${correct})`;
-                resultP.style.color = "red";
+                    const bodyP = document.createElement("p");
+                    bodyP.textContent = bodyText;
+                    qDiv.appendChild(bodyP);
+
+                    qDiv.appendChild(document.createElement("br"));
+
+                    // 라디오 버튼
+                    q.choices.forEach((choice) => {
+                        const label = document.createElement("label");
+                        label.style.display = "block";
+                        const radio = document.createElement("input");
+                        radio.type = "radio";
+                        radio.name = "q" + q.number;
+
+                        // "① ...", "② ..." 형태에서 앞글자만 value로
+                        const prefix = choice.trim().split(" ")[0];
+                        radio.value = prefix;
+
+                        label.appendChild(radio);
+                        label.appendChild(document.createTextNode(" " + choice));
+                        qDiv.appendChild(label);
+                    });
+
+                    questionForm.appendChild(qDiv);
+                });
+
+                correctAnswers = resultJSON.answers || [];
+                document.getElementById("display-passage").textContent = passage;
+                originalQuestionsHTML = questionForm.innerHTML;
+                document.getElementById("answers").textContent =
+                    correctAnswers.map((ans, i) => (i+1) + "번: " + ans).join("\n");
+                document.getElementById("answer-section").style.display = "none";
+                document.getElementById("result").textContent = "";
+                showSection('practice');
+            } catch (err) {
+                console.error("문제 생성 중 오류:", err);
+                alert("문제 생성에 실패했습니다: " + err.message);
             }
-            block.appendChild(resultP);
-        });
+        }
 
-        document.getElementById("result").textContent =
-            `총 ${questionBlocks.length}문항 중 ${score}문항 정답`;
-        document.getElementById("answer-section").style.display = "block";
-    }
+        function submitAnswers() {
+            const questionBlocks = document.querySelectorAll("#question-form .question-block");
+            let score = 0;
 
-    // 재응시
-    function resetTest() {
-        document.getElementById("question-form").innerHTML = originalQuestionsHTML;
-        document.getElementById("result").textContent = "";
-        document.getElementById("answer-section").style.display = "none";
-    }
+            questionBlocks.forEach((block, idx) => {
+                const radios = block.querySelectorAll("input[type='radio']");
+                let selected = "";
+                radios.forEach(radio => {
+                    if (radio.checked) selected = radio.value.trim();
+                });
 
-    function printPage() {
-        window.print();
-    }
+                const correct = (correctAnswers[idx] || "").trim();
+                const resultP = document.createElement("p");
 
-    window.generateQuestion = generateQuestion;
-    window.submitAnswers = submitAnswers;
-    window.resetTest = resetTest;
-    window.printPage = printPage;
-</script>
+                if (selected === correct) {
+                    resultP.textContent = "문제 " + (idx+1) + ": 정답";
+                    resultP.style.color = "green";
+                    score++;
+                } else {
+                    resultP.textContent = `문제 ${idx+1}: 오답 (정답: ${correct})`;
+                    resultP.style.color = "red";
+                }
+                block.appendChild(resultP);
+            });
 
-   
+            document.getElementById("result").textContent =
+                `총 ${questionBlocks.length}문항 중 ${score}문항 정답`;
+            document.getElementById("answer-section").style.display = "block";
+        }
+
+        function resetTest() {
+            document.getElementById("question-form").innerHTML = originalQuestionsHTML;
+            document.getElementById("result").textContent = "";
+            document.getElementById("answer-section").style.display = "none";
+        }
+
+        function printPage() {
+            window.print();
+        }
+
+        window.generateQuestion = generateQuestion;
+        window.submitAnswers = submitAnswers;
+        window.resetTest = resetTest;
+        window.printPage = printPage;
+    </script>
     <script>
         async function handleImageUpload() {
             const imageInput = document.getElementById('imageInput');
