@@ -102,7 +102,7 @@
             .container { box-shadow: none; }
         }
     </style>
-    <!-- 라이브러리 포함 -->
+    <!-- 라이브러리 (Tesseract) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.4/tesseract.min.js"></script>
     <script>
         function showSection(sectionId) {
@@ -127,6 +127,7 @@
             <button onclick="showSection('generate')">문제 생성</button>
             <button onclick="showSection('practice')">문제 풀기</button>
         </div>
+        
         <!-- 지문 업로드 섹션 -->
         <div id="upload" class="section">
             <h2>지문 업로드</h2>
@@ -135,26 +136,27 @@
             <button onclick="handleImageUpload()">이미지에서 텍스트 추출 후 입력</button>
             <button onclick="showSection('generate')">입력 완료</button>
         </div>
+        
         <!-- 문제 생성 섹션 -->
         <div id="generate" class="section" style="display:none;">
             <h2>문제 유형 선택 및 문항 수</h2>
-            <!-- 사용자가 요청한 7가지 유형만 -->
             <label><input type="checkbox" class="problem-type" value="주제 및 목적 파악"> 주제 및 목적 파악</label>
             <label><input type="checkbox" class="problem-type" value="세부 내용 이해"> 세부 내용 이해</label>
             <label><input type="checkbox" class="problem-type" value="논리적 관계 파악"> 논리적 관계 파악</label>
             <label><input type="checkbox" class="problem-type" value="어휘 추론"> 어휘 추론</label>
             <label><input type="checkbox" class="problem-type" value="빈칸 추론"> 빈칸 추론</label>
             <label><input type="checkbox" class="problem-type" value="글의 순서 파악"> 글의 순서 파악</label>
-            <label><input type="checkbox" class="problem-type" value="지시 대상 파악"> 지시 대상 파악</label>
+            <label><input type="checkbox" class="problem-type" value="어법"> 어법</label>
             <br>
             <label>전체 문항 수: <input type="number" id="totalQuestions" value="1" min="1"></label>
             <br>
             <button onclick="generateQuestion()">선택 완료</button>
         </div>
+        
         <!-- 문제 풀기 및 채점 섹션 -->
         <div id="practice" class="section" style="display:none;">
             <h2>문제 풀기</h2>
-            <!-- 전체 지문 항상 표시 -->
+            <!-- 전체 지문 표시 -->
             <div id="full-passage">
                 <strong>전체 지문:</strong>
                 <p id="display-passage"></p>
@@ -162,7 +164,7 @@
             <!-- 문제 폼 -->
             <div id="pdf-content">
                 <form id="question-form">
-                    <!-- 동적으로 생성된 문제들이 여기에 추가됩니다 -->
+                    <!-- 동적으로 생성된 문제들이 여기에 추가됨 -->
                 </form>
             </div>
             <div id="control-buttons" style="margin-top:20px;">
@@ -175,12 +177,13 @@
                 <strong>정답 모음:</strong>
                 <pre id="answers"></pre>
             </div>
-            <!-- PDF 다운로드 버튼 대신 인쇄 버튼 추가 -->
+            <!-- 인쇄 버튼 -->
             <button onclick="printPage()">웹페이지 인쇄</button>
         </div>
     </div>
   
     <script>
+        // Cloudflare Worker URL
         const WORKER_GENERATE_URL = "https://readingquiz.sehyunglee2015.workers.dev/api/generate";
 
         let lastRequestTime = 0;
@@ -194,7 +197,7 @@
                 alert("지문을 입력하세요.");
                 return;
             }
-            // 체크된 문제 유형(7가지 중 선택된 것)
+            // 체크된 문제 유형 가져오기
             const checkboxes = document.querySelectorAll('.problem-type:checked');
             let selectedTypes = Array.from(checkboxes).map(cb => cb.value);
             if (selectedTypes.length === 0) {
@@ -215,6 +218,7 @@
             lastRequestTime = currentTime;
 
             try {
+                // Worker로 요청
                 const response = await fetch(WORKER_GENERATE_URL, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -245,15 +249,19 @@
                 questionForm.innerHTML = "";
                 correctAnswers = [];
 
+                // JSON 구조: {questions: [...], answers: [...]}
+                // 각 question에 {number, question, choices:[]}이 있음
                 resultJSON.questions.forEach((q) => {
                     const qDiv = document.createElement("div");
                     qDiv.className = "question-block";
 
+                    // q.question에서 문항 지시문 + 본문을 구분
                     let parts = q.question.split("\n");
                     const instruction = parts[0]?.trim() || "";
                     const bodyText = parts.slice(1).join("\n").trim();
 
                     const numP = document.createElement("p");
+                    // "문항 N" 형태
                     numP.textContent = q.number + ". " + instruction;
                     qDiv.appendChild(numP);
 
@@ -263,15 +271,16 @@
 
                     qDiv.appendChild(document.createElement("br"));
 
-                    // 라디오 버튼
+                    // choices
                     q.choices.forEach((choice) => {
                         const label = document.createElement("label");
                         label.style.display = "block";
+
                         const radio = document.createElement("input");
                         radio.type = "radio";
                         radio.name = "q" + q.number;
 
-                        // "① ...", "② ..." 형태에서 앞글자만 value로
+                        // 예: "① 선택지" -> value = "①"
                         const prefix = choice.trim().split(" ")[0];
                         radio.value = prefix;
 
@@ -283,11 +292,16 @@
                     questionForm.appendChild(qDiv);
                 });
 
+                // 정답 배열
                 correctAnswers = resultJSON.answers || [];
+                // 지문 표시
                 document.getElementById("display-passage").textContent = passage;
+                // 원본 폼 보관(재응시시 복원)
                 originalQuestionsHTML = questionForm.innerHTML;
+                // 정답표
                 document.getElementById("answers").textContent =
                     correctAnswers.map((ans, i) => (i+1) + "번: " + ans).join("\n");
+
                 document.getElementById("answer-section").style.display = "none";
                 document.getElementById("result").textContent = "";
                 showSection('practice');
@@ -300,19 +314,17 @@
         function submitAnswers() {
             const questionBlocks = document.querySelectorAll("#question-form .question-block");
             let score = 0;
-
             questionBlocks.forEach((block, idx) => {
                 const radios = block.querySelectorAll("input[type='radio']");
                 let selected = "";
                 radios.forEach(radio => {
                     if (radio.checked) selected = radio.value.trim();
                 });
-
                 const correct = (correctAnswers[idx] || "").trim();
                 const resultP = document.createElement("p");
 
                 if (selected === correct) {
-                    resultP.textContent = "문제 " + (idx+1) + ": 정답";
+                    resultP.textContent = `문제 ${idx+1}: 정답`;
                     resultP.style.color = "green";
                     score++;
                 } else {
@@ -321,7 +333,6 @@
                 }
                 block.appendChild(resultP);
             });
-
             document.getElementById("result").textContent =
                 `총 ${questionBlocks.length}문항 중 ${score}문항 정답`;
             document.getElementById("answer-section").style.display = "block";
@@ -341,8 +352,8 @@
         window.submitAnswers = submitAnswers;
         window.resetTest = resetTest;
         window.printPage = printPage;
-    </script>
-    <script>
+
+        // 이미지에서 OCR로 텍스트 추출
         async function handleImageUpload() {
             const imageInput = document.getElementById('imageInput');
             const passageTextarea = document.getElementById('passage');
@@ -352,7 +363,7 @@
                 try {
                     const { data: { text } } = await Tesseract.recognize(
                         imageFile,
-                        'eng', // 영어 OCR
+                        'eng',
                         { logger: m => console.log(m) }
                     );
                     passageTextarea.value = text;
