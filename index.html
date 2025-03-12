@@ -182,10 +182,11 @@
 
       <div style="margin-bottom: 10px;">
         <h3>문항 수 선택</h3>
-        <label>
-          전체 문항 수:
-          <input type="number" id="totalQuestions" value="1" min="1" style="width:40px;"/>
-        </label>
+          <div>전체 문항 수:</div>
+      <!-- 실제 입력 박스는 margin-top으로 아래로 내려서 표시 -->
+    <div style="margin-top: 15px;">
+  <input type="number" id="totalQuestions" value="1" min="1" style="width:40px;">
+    </div>      
       </div>
 
       <button onclick="generateQuestion()">
