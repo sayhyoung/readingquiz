@@ -10,7 +10,6 @@
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
     crossorigin="anonymous"
   />
-
   <style>
     body {
       font-family: 'Malgun Gothic', Arial, sans-serif;
@@ -98,13 +97,22 @@
     #question-form .question-block p {
       margin: 5px 0;
     }
-    /* 로딩 표시 (처음에는 숨김) */
+    /* 로딩 표시 */
     #loading-indicator {
       display: none;
       margin-top: 10px;
       color: red;
       font-weight: bold;
     }
+
+    /* 정답/해설, 국문 해석 내용에서 가로 넘침 방지 */
+    #answer-section pre,
+    #korean-section pre {
+      white-space: pre-wrap;       /* 줄바꿈 허용 */
+      overflow-wrap: break-word;   /* 단어 단위로 끊기 */
+      word-wrap: break-word;       /* IE, Edge 대응 */
+    }
+
     /* 인쇄 시 */
     @media print {
       .tabs, button, #loading-indicator {
@@ -115,7 +123,7 @@
       }
     }
   </style>
-  <!-- Tesseract (OCR) -->
+  <!-- Tesseract.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.4/tesseract.min.js"></script>
   <script>
     function showSection(sectionId) {
@@ -192,11 +200,11 @@
       <!-- 문제 폼 -->
       <div id="pdf-content">
         <form id="question-form">
-          <!-- 동적으로 생성된 문제들 표시 -->
+          <!-- 동적으로 생성된 문제 표시 -->
         </form>
       </div>
 
-      <!-- 하단 버튼들: "정답 및 해설", "국문 해석", 인쇄 -->
+      <!-- 하단 버튼: 정답 및 해설 / 국문 해석 -->
       <div style="margin-top:20px;">
         <button type="button" onclick="showAnswersAndExplanations()">
           <i class="fas fa-info-circle"></i> 정답 및 해설
@@ -204,22 +212,27 @@
         <button type="button" onclick="showKoreanTranslation()">
           <i class="fas fa-language"></i> 국문 해석
         </button>
-        <button onclick="printPage()">
-          <i class="fas fa-print"></i> 웹 페이지 인쇄
-        </button>
       </div>
 
-      <!-- 정답/해설 출력 -->
+      <!-- 정답/해설 -->
       <div id="answer-section" style="margin-top: 20px; display: none;">
         <h3>정답 및 해설</h3>
         <pre id="answers"></pre>
         <pre id="explanations"></pre>
+        <!-- 인쇄 버튼을 해설 아래에 배치 -->
+        <button onclick="printPage()" style="margin-top:10px;">
+          <i class="fas fa-print"></i> 웹 페이지 인쇄
+        </button>
       </div>
 
-      <!-- 국문 해석 출력 -->
+      <!-- 국문 해석 -->
       <div id="korean-section" style="margin-top: 20px; display: none;">
         <h3>국문 해석</h3>
         <pre id="korean-translation"></pre>
+        <!-- 인쇄 버튼을 번역 아래에 배치 -->
+        <button onclick="printPage()" style="margin-top:10px;">
+          <i class="fas fa-print"></i> 웹 페이지 인쇄
+        </button>
       </div>
     </div>
   </div>
@@ -229,7 +242,6 @@
 
     let lastRequestTime = 0;
     const requestInterval = 15000;
-
     let originalQuestionsHTML = "";
     let correctAnswers = [];
     let explanations = [];
@@ -297,20 +309,22 @@
           throw new Error("문제 생성 결과가 올바르지 않습니다.");
         }
 
-        // 문제 데이터
         const questionForm = document.getElementById("question-form");
         questionForm.innerHTML = "";
 
-        const qs = resultJSON.questions || [];
+        // Worker가 내려준 필드들
         correctAnswers = resultJSON.answers || [];
         explanations = resultJSON.explanations || [];
         koreanTranslation = resultJSON.koreanTranslation || "";
 
-        qs.forEach((q, idx) => {
+        // questions
+        if (!resultJSON.questions) {
+          throw new Error("문항 데이터 없음");
+        }
+        resultJSON.questions.forEach((q, idx) => {
           const qDiv = document.createElement("div");
           qDiv.className = "question-block";
 
-          // question: "Q1. ...\n(본문)"
           let parts = q.question.split("\n");
           const instruction = parts[0]?.trim() || "";
           const bodyText = parts.slice(1).join("\n").trim();
@@ -337,51 +351,48 @@
         });
 
         originalQuestionsHTML = questionForm.innerHTML;
-
         document.getElementById("loading-indicator").style.display = "none";
-        // 문제 확인 섹션으로 이동
+        // 문제 확인 섹션으로
         showSection('check');
       } catch (err) {
         console.error("문제 생성 중 오류:", err);
-        alert("문제 생성에 실패했습니다: " + err.message);
+        alert("문제 생성 실패: " + err.message);
         document.getElementById("loading-indicator").style.display = "none";
       }
     }
 
-    // "정답 및 해설" 버튼
+    // "정답 및 해설"
     function showAnswersAndExplanations() {
-      // 보여주기
+      // 숨김 / 보임
       document.getElementById("answer-section").style.display = "block";
       document.getElementById("korean-section").style.display = "none";
 
-      // 정답
       const ansElem = document.getElementById("answers");
+      const expElem = document.getElementById("explanations");
+
       if (!correctAnswers || correctAnswers.length === 0) {
         ansElem.textContent = "정답 정보가 없습니다.";
       } else {
-        ansElem.textContent = correctAnswers.map((ans, i) => `${i+1}번: ${ans}`).join("\n");
+        ansElem.textContent = correctAnswers.map((ans, i) => `${i+1}번 정답: ${ans}`).join("\n");
       }
 
-      // 해설
-      const expElem = document.getElementById("explanations");
       if (!explanations || explanations.length === 0) {
         expElem.textContent = "해설 정보가 없습니다.";
       } else {
-        // 문항 수만큼 해설
         expElem.textContent = explanations.map((ex, i) => `${i+1}번 해설: ${ex}`).join("\n\n");
       }
     }
 
-    // "국문 해석" 버튼
+    // "국문 해석"
     function showKoreanTranslation() {
       document.getElementById("answer-section").style.display = "none";
       document.getElementById("korean-section").style.display = "block";
 
-      const korText = document.getElementById("korean-translation");
+      const korElem = document.getElementById("korean-translation");
       if (!koreanTranslation) {
-        korText.textContent = "국문 해석 정보가 없습니다.";
+        korElem.textContent = "국문 해석 정보가 없습니다.";
       } else {
-        korText.textContent = koreanTranslation;
+        korElem.textContent = koreanTranslation;
       }
     }
 
@@ -389,7 +400,7 @@
       window.print();
     }
 
-    // 이미지 -> 텍스트 (OCR)
+    // OCR
     async function handleImageUpload() {
       const imageInput = document.getElementById('imageInput');
       const passageTextarea = document.getElementById('passage');
@@ -401,14 +412,14 @@
           alert('이미지에서 텍스트 추출 완료!');
         } catch (error) {
           console.error("OCR Error:", error);
-          alert('이미지에서 텍스트를 추출하는 데 실패했습니다. ' + error);
+          alert('이미지에서 텍스트 추출 실패: ' + error);
         }
       } else {
         alert('이미지 파일을 선택해주세요.');
       }
     }
 
-    // Expose to window
+    // expose
     window.handleImageUpload = handleImageUpload;
     window.generateQuestion = generateQuestion;
     window.showAnswersAndExplanations = showAnswersAndExplanations;
