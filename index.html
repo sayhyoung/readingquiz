@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
+  <!-- 반응형 화면을 위한 meta 태그 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>영어 독해 문제 생성기</title>
   <!-- 아이콘 (Font Awesome) -->
@@ -11,6 +12,12 @@
     crossorigin="anonymous"
   />
   <style>
+    /* 기본 스타일 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
     body {
       font-family: 'Malgun Gothic', Arial, sans-serif;
       background-color: #f8f9fa;
@@ -28,6 +35,7 @@
     h1 {
       text-align: center;
       color: #007bff;
+      margin-bottom: 20px;
     }
     .tabs {
       display: flex;
@@ -36,6 +44,7 @@
       padding: 10px;
       border-radius: 8px;
       margin-bottom: 20px;
+      flex-wrap: wrap;
     }
     .tabs button {
       background: none;
@@ -64,6 +73,7 @@
       font-size: 16px;
       padding: 8px;
     }
+    /* 라벨 기본 */
     label {
       font-size: 16px;
       margin-right: 10px;
@@ -104,16 +114,13 @@
       color: red;
       font-weight: bold;
     }
-
-    /* 정답/해설, 국문 해석 내용에서 가로 넘침 방지 */
+    /* 정답/해설, 국문 해석 */
     #answer-section pre,
     #korean-section pre {
-      white-space: pre-wrap;       /* 줄바꿈 허용 */
-      overflow-wrap: break-word;   /* 단어 단위로 끊기 */
-      word-wrap: break-word;       /* IE, Edge 대응 */
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
     }
-
-    /* 인쇄 시 */
     @media print {
       .tabs, button, #loading-indicator {
         display: none;
@@ -122,8 +129,33 @@
         box-shadow: none;
       }
     }
+
+    /* 반응형 처리 (예: 화면너비 600px 이하) */
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      h1 {
+        font-size: 1.2rem;
+      }
+      .tabs button {
+        margin-bottom: 5px;
+        font-size: 14px;
+        padding: 8px 16px;
+      }
+      .section {
+        margin-top: 10px;
+        padding: 15px;
+      }
+      label {
+        font-size: 14px;
+      }
+      button {
+        font-size: 14px;
+      }
+    }
   </style>
-  <!-- Tesseract.js -->
+  <!-- Tesseract.js for OCR -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.4/tesseract.min.js"></script>
   <script>
     function showSection(sectionId) {
@@ -182,10 +214,10 @@
 
       <div style="margin-bottom: 10px;">
         <h3>문항 수 선택</h3>
-  <label>
-    전체 문항 수:
-    <input type="number" id="totalQuestions" value="1" min="1" style="width:40px;">
-  </label>    
+        <label>
+          전체 문항 수:
+          <input type="number" id="totalQuestions" value="1" min="1" style="width:40px;">
+        </label>
       </div>
 
       <button onclick="generateQuestion()">
@@ -219,7 +251,6 @@
         <h3>정답 및 해설</h3>
         <pre id="answers"></pre>
         <pre id="explanations"></pre>
-        <!-- 인쇄 버튼을 해설 아래에 배치 -->
         <button onclick="printPage()" style="margin-top:10px;">
           <i class="fas fa-print"></i> 웹 페이지 인쇄
         </button>
@@ -229,7 +260,6 @@
       <div id="korean-section" style="margin-top: 20px; display: none;">
         <h3>국문 해석</h3>
         <pre id="korean-translation"></pre>
-        <!-- 인쇄 버튼을 번역 아래에 배치 -->
         <button onclick="printPage()" style="margin-top:10px;">
           <i class="fas fa-print"></i> 웹 페이지 인쇄
         </button>
@@ -241,14 +271,14 @@
     const WORKER_GENERATE_URL = "https://readingquiz.sehyunglee2015.workers.dev/api/generate";
 
     let lastRequestTime = 0;
-    const requestInterval = 15000;
+    const requestInterval = 5000;
+
     let originalQuestionsHTML = "";
     let correctAnswers = [];
     let explanations = [];
     let koreanTranslation = "";
     let userPassage = "";
 
-    // 문제 생성
     async function generateQuestion() {
       document.getElementById("loading-indicator").style.display = "block";
 
@@ -312,12 +342,10 @@
         const questionForm = document.getElementById("question-form");
         questionForm.innerHTML = "";
 
-        // Worker가 내려준 필드들
         correctAnswers = resultJSON.answers || [];
         explanations = resultJSON.explanations || [];
         koreanTranslation = resultJSON.koreanTranslation || "";
 
-        // questions
         if (!resultJSON.questions) {
           throw new Error("문항 데이터 없음");
         }
@@ -337,7 +365,6 @@
           bodyP.textContent = bodyText;
           qDiv.appendChild(bodyP);
 
-          // choices
           if (q.choices) {
             q.choices.forEach(choice => {
               const label = document.createElement("label");
@@ -352,7 +379,7 @@
 
         originalQuestionsHTML = questionForm.innerHTML;
         document.getElementById("loading-indicator").style.display = "none";
-        // 문제 확인 섹션으로
+        // 문제 확인 섹션
         showSection('check');
       } catch (err) {
         console.error("문제 생성 중 오류:", err);
@@ -361,9 +388,8 @@
       }
     }
 
-    // "정답 및 해설"
+    // 정답 및 해설
     function showAnswersAndExplanations() {
-      // 숨김 / 보임
       document.getElementById("answer-section").style.display = "block";
       document.getElementById("korean-section").style.display = "none";
 
@@ -383,7 +409,7 @@
       }
     }
 
-    // "국문 해석"
+    // 국문 해석
     function showKoreanTranslation() {
       document.getElementById("answer-section").style.display = "none";
       document.getElementById("korean-section").style.display = "block";
@@ -400,7 +426,7 @@
       window.print();
     }
 
-    // OCR
+    // 이미지 -> 텍스트 (OCR)
     async function handleImageUpload() {
       const imageInput = document.getElementById('imageInput');
       const passageTextarea = document.getElementById('passage');
@@ -419,7 +445,6 @@
       }
     }
 
-    // expose
     window.handleImageUpload = handleImageUpload;
     window.generateQuestion = generateQuestion;
     window.showAnswersAndExplanations = showAnswersAndExplanations;
