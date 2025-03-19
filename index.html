@@ -274,7 +274,9 @@
   <script>
     const WORKER_GENERATE_URL = "https://readingquiz.sehyunglee2015.workers.dev/api/generate";
 
+    // 마지막 요청 시각 (중복 요청 방지용)
     let lastRequestTime = 0;
+    // 최소 요청 간격 (ms)
     const requestInterval = 5000;
 
     let originalQuestionsHTML = "";
@@ -283,41 +285,47 @@
     let koreanTranslation = "";
     let userPassage = "";
 
+    // 문제 생성 함수
     async function generateQuestion() {
-      document.getElementById("loading-indicator").style.display = "block";
+      // 처음엔 숨김 (에러 시에 "문제 생성 중..."이 아예 안 뜨도록)
+      const loadingEl = document.getElementById("loading-indicator");
+      loadingEl.style.display = "none";
 
       const passage = document.getElementById("passage").value.trim();
       userPassage = passage;
+
+      // ====== 유효성 검증 ======
+      // (1) 지문 입력 여부
       if (!passage) {
         alert("지문을 입력하세요.");
-        document.getElementById("loading-indicator").style.display = "none";
-        return;
+        return;  // 유효성 실패 -> 로딩표시 절대 on 하지 않음
       }
-
+      // (2) 문제 유형 체크
       const checkboxes = document.querySelectorAll('.problem-type:checked');
       let selectedTypes = Array.from(checkboxes).map(cb => cb.value);
       if (selectedTypes.length === 0) {
         alert("적어도 하나의 문제 유형을 선택해 주세요.");
-        document.getElementById("loading-indicator").style.display = "none";
-        return;
+        return;  // return 시 로딩표시 X
       }
-
+      // (3) 총 문항 수 체크
       const totalQuestions = parseInt(document.getElementById("totalQuestions").value);
       if (isNaN(totalQuestions) || totalQuestions < selectedTypes.length) {
         alert("전체 문항 수는 선택된 문제 유형 수 이상이어야 합니다.");
-        document.getElementById("loading-indicator").style.display = "none";
-        return;
+        return;  // return 시 로딩표시 X
       }
-
+      // (4) 요청 간격 체크
       const currentTime = Date.now();
       if (currentTime - lastRequestTime < requestInterval) {
         alert("너무 자주 요청하고 있습니다. 잠시 후 다시 시도해주세요.");
-        document.getElementById("loading-indicator").style.display = "none";
-        return;
+        return;  // return 시 로딩표시 X
       }
       lastRequestTime = currentTime;
 
+      // ====== 모든 검사 통과 후, 실제 문제 생성 요청 전 로딩 표시 ======
+      loadingEl.style.display = "block";
+
       try {
+        // API 요청
         const response = await fetch(WORKER_GENERATE_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -353,10 +361,13 @@
         if (!resultJSON.questions) {
           throw new Error("문항 데이터 없음");
         }
+
+        // 문제 표시
         resultJSON.questions.forEach((q, idx) => {
           const qDiv = document.createElement("div");
           qDiv.className = "question-block";
 
+          // 지시문 + 본문 분리
           let parts = q.question.split("\n");
           const instruction = parts[0]?.trim() || "";
           const bodyText = parts.slice(1).join("\n").trim();
@@ -382,17 +393,20 @@
         });
 
         originalQuestionsHTML = questionForm.innerHTML;
-        document.getElementById("loading-indicator").style.display = "none";
-        // 문제 확인 섹션
+        
+        // 문제 생성 성공 시 로딩 표시 끄고 확인 탭으로 이동
+        loadingEl.style.display = "none";
         showSection('check');
+
       } catch (err) {
+        // ====== 에러 발생 시 로딩 표시 제거 ======
+        loadingEl.style.display = "none";
         console.error("문제 생성 중 오류:", err);
         alert("문제 생성 실패: " + err.message);
-        document.getElementById("loading-indicator").style.display = "none";
       }
     }
 
-    // 정답 및 해설
+    // 정답 및 해설 표시
     function showAnswersAndExplanations() {
       document.getElementById("answer-section").style.display = "block";
       document.getElementById("korean-section").style.display = "none";
@@ -403,17 +417,21 @@
       if (!correctAnswers || correctAnswers.length === 0) {
         ansElem.textContent = "정답 정보가 없습니다.";
       } else {
-        ansElem.textContent = correctAnswers.map((ans, i) => `${i+1}번 정답: ${ans}`).join("\n");
+        ansElem.textContent = correctAnswers
+          .map((ans, i) => `${i+1}번 정답: ${ans}`)
+          .join("\n");
       }
 
       if (!explanations || explanations.length === 0) {
         expElem.textContent = "해설 정보가 없습니다.";
       } else {
-        expElem.textContent = explanations.map((ex, i) => `${i+1}번 해설: ${ex}`).join("\n\n");
+        expElem.textContent = explanations
+          .map((ex, i) => `${i+1}번 해설: ${ex}`)
+          .join("\n\n");
       }
     }
 
-    // 국문 해석
+    // 국문 해석 표시
     function showKoreanTranslation() {
       document.getElementById("answer-section").style.display = "none";
       document.getElementById("korean-section").style.display = "block";
@@ -426,6 +444,7 @@
       }
     }
 
+    // 페이지 인쇄
     function printPage() {
       window.print();
     }
@@ -449,6 +468,7 @@
       }
     }
 
+    // 전역에 노출
     window.handleImageUpload = handleImageUpload;
     window.generateQuestion = generateQuestion;
     window.showAnswersAndExplanations = showAnswersAndExplanations;
