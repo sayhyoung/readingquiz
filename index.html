@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>영어 독해 문제 생성기</title>
-  <!-- Font Awesome 아이콘 -->
-  <link 
+  <!-- Font Awesome -->
+  <link
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
     crossorigin="anonymous"
@@ -17,31 +17,15 @@
       margin: 0;
       padding: 0;
     }
-    /* Pixel Perfect Image 스타일 */
-    html,
-    body {
+
+    /* 페이지 기본 배경/컨테이너 */
+    html, body {
       margin: 0;
       padding: 0;
       height: 100%;
       font-family: Arial, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
-    .image-container {
-      width: 1670px;
-      height: 1000px;
-      overflow: hidden;
-      position: relative;
-    }
-    .full-screen-image {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      top: 0;
-      left: 0;
-    }
-
-    /* 페이지 기본 배경/컨테이너 */
     body {
       background-color: #f8f9fa;
     }
@@ -178,11 +162,19 @@
         font-size: 14px;
       }
     }
+
+    /* 활동 생성 결과 스타일 */
+    #activityOutput {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #f0f0f0;
+      border-radius: 5px;
+    }
   </style>
+
   <!-- Tesseract.js (OCR) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.4/tesseract.min.js"></script>
   <script>
-    // 메뉴 탭 변경
     function showSection(sectionId) {
       const sections = ["upload", "generate", "check", "activity"];
       sections.forEach(id => {
@@ -192,6 +184,275 @@
         }
       });
     }
+
+    // 이미지 -> OCR
+    async function handleImageUpload() {
+      const imageInput = document.getElementById('imageInput');
+      const passageTextarea = document.getElementById('passage');
+      if (imageInput.files && imageInput.files[0]) {
+        const imageFile = imageInput.files[0];
+        try {
+          const { data: { text } } = await Tesseract.recognize(
+            imageFile,
+            'eng',
+            { logger: m => console.log(m) }
+          );
+          passageTextarea.value = text;
+          alert('이미지에서 텍스트 추출 완료!');
+        } catch (error) {
+          console.error("OCR Error:", error);
+          alert('이미지에서 텍스트를 추출 실패: ' + error);
+        }
+      } else {
+        alert('이미지 파일을 선택해주세요.');
+      }
+    }
+
+    // /api/generate 문제 생성
+    let lastRequestTime = 0;
+    const requestInterval = 15000;
+    let originalQuestionsHTML = "";
+    let correctAnswers = [];
+    let explanations = [];
+    let koreanTranslation = "";
+    let userPassage = "";
+
+    async function generateQuestion() {
+      document.getElementById("loading-indicator").style.display = "block";
+
+      const passage = document.getElementById("passage").value.trim();
+      userPassage = passage;
+      if (!passage) {
+        alert("지문을 입력하세요.");
+        document.getElementById("loading-indicator").style.display = "none";
+        return;
+      }
+
+      const checkboxes = document.querySelectorAll('.problem-type:checked');
+      let selectedTypes = Array.from(checkboxes).map(cb => cb.value);
+      if (selectedTypes.length === 0) {
+        alert("적어도 하나의 문제 유형을 선택해 주세요.");
+        document.getElementById("loading-indicator").style.display = "none";
+        return;
+      }
+
+      const totalQuestions = parseInt(document.getElementById("totalQuestions").value);
+      if (isNaN(totalQuestions) || totalQuestions < selectedTypes.length) {
+        alert("전체 문항 수는 선택된 문제 유형 수 이상이어야 합니다.");
+        document.getElementById("loading-indicator").style.display = "none";
+        return;
+      }
+
+      const currentTime = Date.now();
+      if (currentTime - lastRequestTime < requestInterval) {
+        alert("너무 자주 요청하고 있습니다. 잠시 후 다시 시도해주세요.");
+        document.getElementById("loading-indicator").style.display = "none";
+        return;
+      }
+      lastRequestTime = currentTime;
+
+      try {
+        const response = await fetch("https://readingquiz.sehyunglee2015.workers.dev/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            passage,
+            selectedTypes,
+            totalQuestions
+          })
+        });
+
+        if (!response.ok) {
+          const msg = await response.text();
+          throw new Error(`서버 오류: ${response.status} / ${msg}`);
+        }
+
+        const data = await response.json();
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        const resultJSON = data.resultJSON;
+        if (!resultJSON || !resultJSON.questions) {
+          throw new Error("문제 생성 결과가 올바르지 않습니다.");
+        }
+
+        const questionForm = document.getElementById("question-form");
+        questionForm.innerHTML = "";
+
+        correctAnswers = resultJSON.answers || [];
+        explanations = resultJSON.explanations || [];
+        koreanTranslation = resultJSON.koreanTranslation || "";
+
+        if (!resultJSON.questions) {
+          throw new Error("문항 데이터 없음");
+        }
+        resultJSON.questions.forEach((q, idx) => {
+          const qDiv = document.createElement("div");
+          qDiv.className = "question-block";
+
+          let parts = q.question.split("\n");
+          const instruction = parts[0]?.trim() || "";
+          const bodyText = parts.slice(1).join("\n").trim();
+
+          const numP = document.createElement("p");
+          numP.textContent = q.number + ". " + instruction;
+          qDiv.appendChild(numP);
+
+          const bodyP = document.createElement("p");
+          bodyP.textContent = bodyText;
+          qDiv.appendChild(bodyP);
+
+          if (q.choices) {
+            q.choices.forEach(choice => {
+              const label = document.createElement("label");
+              label.style.display = "block";
+              label.textContent = choice;
+              qDiv.appendChild(label);
+            });
+          }
+          questionForm.appendChild(qDiv);
+        });
+
+        originalQuestionsHTML = questionForm.innerHTML;
+        document.getElementById("loading-indicator").style.display = "none";
+        showSection('check');
+      } catch (err) {
+        console.error("문제 생성 중 오류:", err);
+        alert("문제 생성 실패: " + err.message);
+        document.getElementById("loading-indicator").style.display = "none";
+      }
+    }
+
+    function showAnswersAndExplanations() {
+      document.getElementById("answer-section").style.display = "block";
+      document.getElementById("korean-section").style.display = "none";
+
+      const ansElem = document.getElementById("answers");
+      const expElem = document.getElementById("explanations");
+
+      if (!correctAnswers || correctAnswers.length === 0) {
+        ansElem.textContent = "정답 정보가 없습니다.";
+      } else {
+        ansElem.textContent = correctAnswers.map((ans, i) => `${i+1}번 정답: ${ans}`).join("\n");
+      }
+      if (!explanations || explanations.length === 0) {
+        expElem.textContent = "해설 정보가 없습니다.";
+      } else {
+        expElem.textContent = explanations.map((ex, i) => `${i+1}번 해설: ${ex}`).join("\n\n");
+      }
+    }
+
+    function showKoreanTranslation() {
+      document.getElementById("answer-section").style.display = "none";
+      document.getElementById("korean-section").style.display = "block";
+
+      const korElem = document.getElementById("korean-translation");
+      if (!koreanTranslation) {
+        korElem.textContent = "국문 해석 정보가 없습니다.";
+      } else {
+        korElem.textContent = koreanTranslation;
+      }
+    }
+
+    function printPage() {
+      window.print();
+    }
+
+    // *** 활동 생성 ***
+    async function generateActivity() {
+      const passage = document.getElementById("passage").value.trim();
+      if (!passage) {
+        alert("지문을 먼저 업로드하거나 입력하세요!");
+        return;
+      }
+      const checks = document.querySelectorAll('.activity-type:checked');
+      if (!checks.length) {
+        alert("최소 한 개 이상의 활동을 선택해주세요.");
+        return;
+      }
+      const selectedActs = Array.from(checks).map(c => c.value);
+
+      try {
+        const resp = await fetch("https://readingquiz.sehyunglee2015.workers.dev/api/activity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            passage,
+            activities: selectedActs
+          })
+        });
+        if (!resp.ok) {
+          const msg = await resp.text();
+          throw new Error(`활동 생성 API 오류: ${resp.status} / ${msg}`);
+        }
+        const data = await resp.json();
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        const result = data.result;
+        if (!result || !Array.isArray(result.activities)) {
+          throw new Error("올바르지 않은 활동 데이터");
+        }
+
+        const outputDiv = document.getElementById("activityOutput");
+        let html = "<h3>활동 결과</h3>";
+        result.activities.forEach(act => {
+          html += `<h4>${act.type}</h4>`;
+          if (act.type === "단어 및 주요 표현 익히기" && act.items) {
+            act.items.forEach(item => {
+              html += `
+                <p>
+                  <strong>${item.vocab}</strong> : ${item.meaning}
+                  <br />필기공간: <input type="text" style="width:200px;" />
+                </p>
+              `;
+            });
+          } else if (act.type === "영어 문장 해석하기" && act.sentences) {
+            act.sentences.forEach((s, idx) => {
+              html += `
+                <p>
+                  문장 ${idx+1}: ${s.original}
+                  <br />해석: <input type="text" style="width:250px;" value="${s.blank||""}" />
+                </p>
+              `;
+            });
+          } else if (act.type === "우리말 영어로 번역하기" && act.list) {
+            act.list.forEach((row, idx) => {
+              html += `
+                <p>
+                  [${idx+1}] 한국어: ${row.korean}
+                  <br />영어 작문: <input type="text" style="width:300px;" />
+                </p>
+              `;
+            });
+          } else if (act.type === "문법 변형 활동" && act.examples) {
+            act.examples.forEach((ex, i) => {
+              html += `
+                <p>
+                  예제 ${i+1}: ${ex.original}
+                  <br />변형(연습): <input type="text" style="width:300px;" placeholder="${ex.transform||''}" />
+                </p>
+              `;
+            });
+          } else {
+            html += `<p>내용 미정</p>`;
+          }
+        });
+        outputDiv.innerHTML = html;
+
+      } catch (err) {
+        console.error("활동 생성 에러:", err);
+        alert("활동 생성 실패: " + err.message);
+      }
+    }
+
+    window.handleImageUpload = handleImageUpload;
+    window.generateQuestion = generateQuestion;
+    window.showAnswersAndExplanations = showAnswersAndExplanations;
+    window.showKoreanTranslation = showKoreanTranslation;
+    window.printPage = printPage;
+    window.generateActivity = generateActivity;
   </script>
 </head>
 <body>
@@ -209,7 +470,6 @@
       <button onclick="showSection('check')">
         <i class="far fa-eye"></i> 문제 확인
       </button>
-      <!-- 새로 추가된 "활동 생성" 탭 -->
       <button onclick="showSection('activity')">
         <i class="fas fa-chalkboard-teacher"></i> 활동 생성
       </button>
@@ -287,11 +547,9 @@
       </div>
     </div>
 
-    <!-- 4) 활동 생성 섹션 (새로 추가) -->
+    <!-- 4) 활동 생성 섹션 -->
     <div id="activity" class="section" style="display:none;">
       <h2><i class="fas fa-chalkboard-teacher"></i> 활동 생성</h2>
-
-      <!-- 하위 기능을 선택하는 체크박스 -->
       <p>생성할 활동을 선택하세요:</p>
       <div style="margin-bottom: 15px;">
         <label><input type="checkbox" class="activity-type" value="단어 및 주요 표현 익히기"> 단어 및 주요 표현 익히기</label><br/>
@@ -299,243 +557,11 @@
         <label><input type="checkbox" class="activity-type" value="우리말 영어로 번역하기"> 우리말 영어로 번역하기</label><br/>
         <label><input type="checkbox" class="activity-type" value="문법 변형 활동"> 문법 변형 활동</label><br/>
       </div>
-
-      <!-- 활동 생성 버튼 -->
       <button onclick="generateActivity()">
         <i class="fas fa-play"></i> 활동 생성
       </button>
-
-      <!-- 활동 결과 표시 -->
-      <div id="activityOutput" style="margin-top: 20px;">
-
-      </div>
+      <div id="activityOutput"></div>
     </div>
-
-    <!-- Pixel Perfect Image (예시) -->
-    <main>
-      <section class="image-container" aria-label="Full screen image display">
-        <img class="full-screen-image" src="img/image.png" alt="Full screen display image" loading="lazy" />
-      </section>
-    </main>
   </div>
-
-  <script>
-    const WORKER_GENERATE_URL = "https://readingquiz.sehyunglee2015.workers.dev/api/generate";
-
-    let lastRequestTime = 0;
-    const requestInterval = 15000;
-    let originalQuestionsHTML = "";
-    let correctAnswers = [];
-    let explanations = [];
-    let koreanTranslation = "";
-    let userPassage = "";
-
-    /* 문제 생성 */
-    async function generateQuestion() {
-      document.getElementById("loading-indicator").style.display = "block";
-
-      const passage = document.getElementById("passage").value.trim();
-      userPassage = passage;
-      if (!passage) {
-        alert("지문을 입력하세요.");
-        document.getElementById("loading-indicator").style.display = "none";
-        return;
-      }
-
-      const checkboxes = document.querySelectorAll('.problem-type:checked');
-      let selectedTypes = Array.from(checkboxes).map(cb => cb.value);
-      if (selectedTypes.length === 0) {
-        alert("적어도 하나의 문제 유형을 선택해 주세요.");
-        document.getElementById("loading-indicator").style.display = "none";
-        return;
-      }
-
-      const totalQuestions = parseInt(document.getElementById("totalQuestions").value);
-      if (isNaN(totalQuestions) || totalQuestions < selectedTypes.length) {
-        alert("전체 문항 수는 선택된 문제 유형 수 이상이어야 합니다.");
-        document.getElementById("loading-indicator").style.display = "none";
-        return;
-      }
-
-      const currentTime = Date.now();
-      if (currentTime - lastRequestTime < requestInterval) {
-        alert("너무 자주 요청하고 있습니다. 잠시 후 다시 시도해주세요.");
-        document.getElementById("loading-indicator").style.display = "none";
-        return;
-      }
-      lastRequestTime = currentTime;
-
-      try {
-        const response = await fetch(WORKER_GENERATE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            passage,
-            selectedTypes,
-            totalQuestions
-          })
-        });
-
-        if (!response.ok) {
-          const msg = await response.text();
-          throw new Error(`서버 오류: ${response.status} / ${msg}`);
-        }
-
-        const data = await response.json();
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
-        const resultJSON = data.resultJSON;
-        if (!resultJSON || !resultJSON.questions) {
-          throw new Error("문제 생성 결과가 올바르지 않습니다.");
-        }
-
-        const questionForm = document.getElementById("question-form");
-        questionForm.innerHTML = "";
-
-        correctAnswers = resultJSON.answers || [];
-        explanations = resultJSON.explanations || [];
-        koreanTranslation = resultJSON.koreanTranslation || "";
-
-        if (!resultJSON.questions) {
-          throw new Error("문항 데이터 없음");
-        }
-        resultJSON.questions.forEach((q, idx) => {
-          const qDiv = document.createElement("div");
-          qDiv.className = "question-block";
-
-          let parts = q.question.split("\n");
-          const instruction = parts[0]?.trim() || "";
-          const bodyText = parts.slice(1).join("\n").trim();
-
-          const numP = document.createElement("p");
-          numP.textContent = q.number + ". " + instruction;
-          qDiv.appendChild(numP);
-
-          const bodyP = document.createElement("p");
-          bodyP.textContent = bodyText;
-          qDiv.appendChild(bodyP);
-
-          if (q.choices) {
-            q.choices.forEach(choice => {
-              const label = document.createElement("label");
-              label.style.display = "block";
-              label.textContent = choice;
-              qDiv.appendChild(label);
-            });
-          }
-          questionForm.appendChild(qDiv);
-        });
-
-        originalQuestionsHTML = questionForm.innerHTML;
-        document.getElementById("loading-indicator").style.display = "none";
-        showSection('check');
-      } catch (err) {
-        console.error("문제 생성 중 오류:", err);
-        alert("문제 생성 실패: " + err.message);
-        document.getElementById("loading-indicator").style.display = "none";
-      }
-    }
-
-    // 정답 및 해설
-    function showAnswersAndExplanations() {
-      document.getElementById("answer-section").style.display = "block";
-      document.getElementById("korean-section").style.display = "none";
-
-      const ansElem = document.getElementById("answers");
-      const expElem = document.getElementById("explanations");
-
-      if (!correctAnswers || correctAnswers.length === 0) {
-        ansElem.textContent = "정답 정보가 없습니다.";
-      } else {
-        ansElem.textContent = correctAnswers.map((ans, i) => `${i+1}번 정답: ${ans}`).join("\n");
-      }
-      if (!explanations || explanations.length === 0) {
-        expElem.textContent = "해설 정보가 없습니다.";
-      } else {
-        expElem.textContent = explanations.map((ex, i) => `${i+1}번 해설: ${ex}`).join("\n\n");
-      }
-    }
-
-    // 국문 해석
-    function showKoreanTranslation() {
-      document.getElementById("answer-section").style.display = "none";
-      document.getElementById("korean-section").style.display = "block";
-
-      const korElem = document.getElementById("korean-translation");
-      if (!koreanTranslation) {
-        korElem.textContent = "국문 해석 정보가 없습니다.";
-      } else {
-        korElem.textContent = koreanTranslation;
-      }
-    }
-
-    // 인쇄
-    function printPage() {
-      window.print();
-    }
-
-    // OCR 처리
-    async function handleImageUpload() {
-      const imageInput = document.getElementById('imageInput');
-      const passageTextarea = document.getElementById('passage');
-      if (imageInput.files && imageInput.files[0]) {
-        const imageFile = imageInput.files[0];
-        try {
-          const { data: { text } } = await Tesseract.recognize(imageFile, 'eng', { logger: m => console.log(m) });
-          passageTextarea.value = text;
-          alert('이미지에서 텍스트 추출 완료!');
-        } catch (error) {
-          console.error("OCR Error:", error);
-          alert('이미지에서 텍스트를 추출 실패: ' + error);
-        }
-      } else {
-        alert('이미지 파일을 선택해주세요.');
-      }
-    }
-
-    /* 새로 추가: 활동 생성 함수 */
-    function generateActivity() {
-      // 어떤 활동을 선택했는지 확인
-      const checks = document.querySelectorAll('.activity-type:checked');
-      if (!checks.length) {
-        alert("최소 하나 이상의 활동을 선택해주세요.");
-        return;
-      }
-
-      const selectedActs = Array.from(checks).map(c => c.value);
-      // userPassage(사용자 지문) 참고 → 실제 기능(단어 추출, 문장 해석 등) 구현 필요
-      // 여기서는 단순 예시로 UI에 표시만
-
-      let outputHTML = "<h3>활동 결과</h3>";
-
-      selectedActs.forEach(act => {
-        if (act === "단어 및 주요 표현 익히기") {
-          outputHTML += "<h4>단어 및 주요 표현 익히기</h4>";
-          outputHTML += "<p>사용자 지문에서 핵심 단어/표현 추출 + 해석, 빈 칸</p>";
-        } else if (act === "영어 문장 해석하기") {
-          outputHTML += "<h4>영어 문장 해석하기</h4>";
-          outputHTML += "<p>지문 내 모든 영어 문장 목록 + 옆 빈 칸</p>";
-        } else if (act === "우리말 영어로 번역하기") {
-          outputHTML += "<h4>우리말 영어로 번역하기</h4>";
-          outputHTML += "<p>각 문장의 한국어 해석 + 빈 칸 (영어 작성)</p>";
-        } else if (act === "문법 변형 활동") {
-          outputHTML += "<h4>문법 변형 활동</h4>";
-          outputHTML += "<p>능동/수동, 접속사, 직접/간접화법, to부정사/동명사, 관계대명사 활용 등</p>";
-        }
-      });
-
-      document.getElementById("activityOutput").innerHTML = outputHTML;
-    }
-
-    // window 전역 노출
-    window.handleImageUpload = handleImageUpload;
-    window.generateQuestion = generateQuestion;
-    window.showAnswersAndExplanations = showAnswersAndExplanations;
-    window.showKoreanTranslation = showKoreanTranslation;
-    window.printPage = printPage;
-    window.generateActivity = generateActivity;
-  </script>
 </body>
 </html>
