@@ -164,8 +164,9 @@
     }
 
     /* 활동 생성 결과 스타일 */
-    /* 활동 확인 섹션에서도 활동 결과를 표시 */
-    #activityOutput {
+    /* 활동 확인 섹션에서 활동 결과를 표시 */
+    #activityOutput,
+    #activityOutputView {
       margin-top: 20px;
       padding: 10px;
       background-color: #f0f0f0;
@@ -402,7 +403,7 @@
         // "활동 확인" 페이지로 이동
         showSection('activityCheck');
 
-        // 활동 확인 페이지에 표시
+        // 활동 확인 페이지에 표시 (정답 X)
         renderActivity(false);
 
       } catch (err) {
@@ -420,8 +421,10 @@
       const outputDiv = document.getElementById("activityOutputView");
       let html = "<h3>활동 결과</h3>";
 
+      // 정답 전용 배열 모음
+      let totalAnswers = [];
+
       activityData.activities.forEach((act, idx) => {
-        // 각 활동간 구분 공백
         if (idx > 0) {
           html += `<div style="margin: 1rem 0;"></div>`;
         }
@@ -430,93 +433,120 @@
         // 단어 및 주요 표현 익히기
         if (act.type === "단어 및 주요 표현 익히기" && act.items) {
           act.items.forEach((item, i) => {
-            // numbering "1)"
-            // 빈칸 => 문장 해석형처럼. item.answer를 보여줄지(showAnswers)
             // item => { vocab, meaning, answer? }
+            // 정답 없음 -> 클릭해도 표시X
             html += `
               <p>
                 ${i+1}) <strong>${item.vocab}</strong>:
                 ${item.meaning}
-                <br/>
-                <u style="display:inline-block; min-width:240px;">&nbsp;</u>
+              </p>
             `;
-            if (showAnswers && item.answer) {
-              html += `<br/>[정답] ${item.answer}`;
-            }
-            html += `</p>`;
           });
         }
         // 영어 문장 해석하기
         else if (act.type === "영어 문장 해석하기" && act.sentences) {
           act.sentences.forEach((s, i) => {
             // s => { original, answer?}
-            const len = Math.round(s.original.length * 1.2);
-            let line = "";
-            for (let k=0; k<len; k++) line += "_";
             html += `
               <p>
                 ${i+1}) ${s.original}
-                <br />해석: <u style="display:inline-block;">${line}</u>
+                <br/>[해석] ..................................
             `;
-            if (showAnswers && s.answer) {
-              html += `<br/>[정답] ${s.answer}`;
-            }
             html += `</p>`;
+            if (s.answer) {
+              if (showAnswers) {
+                // 표시
+                html += `<p style="color:blue;">[정답] ${s.answer}</p>`;
+              } else {
+                totalAnswers.push(`[영문해석 ${i+1}] ${s.answer}`);
+              }
+            }
+          });
+        }
+        // 빈 칸 채우기
+        else if (act.type === "빈 칸 채우기" && act.questions) {
+          act.questions.forEach((qItem, i) => {
+            // qItem => { sentence, solution? }
+            html += `
+              <p>${i+1}) ${qItem.sentence}</p>
+            `;
+            if (qItem.solution) {
+              if (showAnswers) {
+                html += `<p style="color:blue;">[정답] ${qItem.solution}</p>`;
+              } else {
+                totalAnswers.push(`[빈칸채우기 ${i+1}] ${qItem.solution}`);
+              }
+            }
           });
         }
         // 우리말 영어로 번역하기
         else if (act.type === "우리말 영어로 번역하기" && act.list) {
           act.list.forEach((row, i) => {
             // row => { korean, answer? }
-            const len = Math.round(row.korean.length * 1.2);
-            let line = "";
-            for (let k=0; k<len; k++) line += "_";
             html += `
-              <p>
-                ${i+1}) ${row.korean}
-                <br />영어: <u style="display:inline-block;">${line}</u>
+              <p>${i+1}) ${row.korean}<br/>
+              [영어 작성] ............
+            </p>
             `;
-            if (showAnswers && row.answer) {
-              html += `<br/>[정답] ${row.answer}`;
+            if (row.answer) {
+              if (showAnswers) {
+                html += `<p style="color:blue;">[정답] ${row.answer}</p>`;
+              } else {
+                totalAnswers.push(`[우리말->영어 ${i+1}] ${row.answer}`);
+              }
             }
-            html += `</p>`;
           });
         }
         // 문법 변형 활동
         else if (act.type === "문법 변형 활동" && act.examples) {
           act.examples.forEach((ex, i) => {
             // ex => { instruction, original, answer? }
+            // 밑줄 제거
             html += `
               <p>
-                ${i+1}) [${ex.instruction}]<br />
-                원문: ${ex.original}
-                <br />변형: <u style="display:inline-block; min-width:180px;">&nbsp;</u>
+                ${i+1}) [${ex.instruction}]
+                <br/>원문: ${ex.original}
+                <br/>변형: ... (직접 작성)
+              </p>
             `;
-            if (showAnswers && ex.answer) {
-              html += `<br/>[정답] ${ex.answer}`;
+            if (ex.answer) {
+              if (showAnswers) {
+                html += `<p style="color:blue;">[정답] ${ex.answer}</p>`;
+              } else {
+                totalAnswers.push(`[문법변형 ${i+1}] ${ex.answer}`);
+              }
             }
-            html += `</p>`;
           });
         }
         else {
           html += `<p>해당 활동에 대한 데이터가 없습니다.</p>`;
         }
       });
-      // 하단 버튼
-      html += `
-        <div style="margin-top:20px;">
-          <button onclick="printPage()">
-            <i class="fas fa-print"></i> 웹 페이지 인쇄
-          </button>
-          <button onclick="showActivityAnswers()">
-            <i class="fas fa-eye"></i> 정답
-          </button>
-        </div>
-      `;
+
+      // 만약 showAnswers=false이면 "정답" 버튼 만들어서 별도 표시
+      if (!showAnswers) {
+        html += `
+          <div style="margin-top:20px;">
+            <button onclick="showActivityAnswers()">
+              <i class="fas fa-eye"></i> 정답
+            </button>
+          </div>
+        `;
+      } else {
+        // showAnswers=true => 이미 표시했으니, 인쇄버튼
+        html += `
+          <div style="margin-top:20px;">
+            <button onclick="printPage()">
+              <i class="fas fa-print"></i> 웹 페이지 인쇄
+            </button>
+          </div>
+        `;
+      }
+
       outputDiv.innerHTML = html;
     }
 
-    // 정답 버튼 클릭 시
+    // 정답 버튼 클릭 시 -> renderActivity(true)
     function showActivityAnswers() {
       renderActivity(true);
     }
@@ -633,6 +663,7 @@
       <div style="margin-bottom: 15px;">
         <label><input type="checkbox" class="activity-type" value="단어 및 주요 표현 익히기"> 단어 및 주요 표현 익히기</label><br/>
         <label><input type="checkbox" class="activity-type" value="영어 문장 해석하기"> 영어 문장 해석하기</label><br/>
+        <label><input type="checkbox" class="activity-type" value="빈 칸 채우기"> 빈 칸 채우기</label><br/>
         <label><input type="checkbox" class="activity-type" value="우리말 영어로 번역하기"> 우리말 영어로 번역하기</label><br/>
         <label><input type="checkbox" class="activity-type" value="문법 변형 활동"> 문법 변형 활동</label><br/>
       </div>
