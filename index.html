@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>영어 독해 문제 생성기</title>
   <!-- Font Awesome for icons -->
   <link
@@ -99,8 +99,6 @@
     button:hover {
       background-color: #0056b3;
     }
-
-    /* 문제 폼 스타일 */
     #question-form .question-block {
       margin-bottom: 20px;
       padding: 10px;
@@ -110,24 +108,18 @@
     #question-form .question-block p {
       margin: 5px 0;
     }
-
-    /* 로딩 표시 */
     #loading-indicator, #activity-loading-indicator {
       display: none;
       margin-top: 10px;
       color: red;
       font-weight: bold;
     }
-
-    /* 정답/해설, 국문 해석 영역 */
     #answer-section pre,
     #korean-section pre {
       white-space: pre-wrap;
       overflow-wrap: break-word;
       word-wrap: break-word;
     }
-
-    /* 인쇄 시 숨길 요소들 */
     @media print {
       .tabs, button, #loading-indicator, #activity-loading-indicator {
         display: none !important;
@@ -136,8 +128,6 @@
         box-shadow: none;
       }
     }
-
-    /* 반응형 */
     @media (max-width: 600px) {
       .container {
         margin: 10px auto;
@@ -156,8 +146,6 @@
         font-size: 14px;
       }
     }
-
-    /* 활동 생성 결과/확인 */
     #activityOutputView {
       margin-top: 20px;
       padding: 10px;
@@ -166,7 +154,6 @@
       line-height: 1.6; /* 줄간격 넓힘 */
     }
   </style>
-
   <!-- Tesseract.js (OCR) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/2.1.4/tesseract.min.js"></script>
   <script>
@@ -203,7 +190,6 @@
       }
     }
 
-    // *** 문제 생성 ***
     let lastRequestTime = 0;
     const requestInterval = 15000;
     let originalQuestionsHTML = "";
@@ -355,7 +341,7 @@
     }
 
     // *** 활동 생성 ***
-    let activityData = null; // 생성된 활동 JSON
+    let activityData = null;
     async function generateActivity() {
       const passage = document.getElementById("passage").value.trim();
       if (!passage) {
@@ -393,12 +379,15 @@
           throw new Error("올바르지 않은 활동 데이터");
         }
 
+        // ### "선택한 활동만" 나오도록 수동 필터링 ###
+        // result.activities => 실제 GPT가 전부 주었을 수 있으니, selectedActs에 있는 것만 남기기
+        const filteredActs = result.activities.filter(a => selectedActs.includes(a.type));
+        result.activities = filteredActs;  // 덮어쓰기
+
         activityData = result;
         document.getElementById("activity-loading-indicator").style.display = "none";
         showSection('activityCheck');
-
         renderActivity(false);
-
       } catch (err) {
         console.error("활동 생성 에러:", err);
         alert("활동 생성 실패: " + err.message);
@@ -406,7 +395,6 @@
       }
     }
 
-    // 활동 확인 페이지에서 출력 (showAnswers=false/true)
     function renderActivity(showAnswers) {
       if (!activityData) {
         document.getElementById("activityOutputView").innerHTML = "<p>아직 생성된 활동이 없습니다.</p>";
@@ -423,17 +411,18 @@
         }
         html += `<h4>${act.type}</h4>`;
 
+        // 가로 끝까지 밑줄
+        const lineLen = 80;
+        let fullLine = "";
+        for(let k=0;k<lineLen;k++){ fullLine+="_"; }
+
         // 단어 및 주요 표현 익히기
         if (act.type === "단어 및 주요 표현 익히기" && act.items) {
           act.items.forEach((item, i) => {
-            // item => { vocab, meaning, answer? }
-            const lineLen = 80; // 가로 끝까지
-            let line = "";
-            for(let k=0; k<lineLen; k++){ line+="_"; }
             html += `
               <p style="margin-bottom:10px;">
                 ${i+1}) <strong>${item.vocab}</strong>: ${item.meaning}
-                <br/>${line}
+                <br/>${fullLine}
               </p>
             `;
           });
@@ -441,14 +430,10 @@
         // 영어 문장 해석하기
         else if (act.type === "영어 문장 해석하기" && act.sentences) {
           act.sentences.forEach((s, i) => {
-            // s => { original, answer?}
-            const len = Math.round(s.original.length*1.2);
-            let line = "";
-            for(let k=0;k<len;k++){ line+="_"; }
             html += `
               <p style="margin-bottom:10px;">
                 ${i+1}) ${s.original}
-                <br/>해석: ${line}
+                <br/>${fullLine}
               </p>
             `;
             if (s.answer) {
@@ -463,7 +448,6 @@
         // 빈 칸 채우기
         else if (act.type === "빈 칸 채우기" && act.questions) {
           act.questions.forEach((qItem, i) => {
-            // qItem => { sentence, solution? }
             html += `
               <p style="margin-bottom:10px;">
                 ${i+1}) ${qItem.sentence}
@@ -481,14 +465,10 @@
         // 우리말 영어로 번역하기
         else if (act.type === "우리말 영어로 번역하기" && act.list) {
           act.list.forEach((row, i) => {
-            // row => {korean, answer?}
-            const len = Math.round(row.korean.length*1.2);
-            let line = "";
-            for(let k=0;k<len;k++){ line+="_"; }
             html += `
               <p style="margin-bottom:10px;">
                 ${i+1}) ${row.korean}
-                <br/>영어: ${line}
+                <br/>${fullLine}
               </p>
             `;
             if (row.answer) {
@@ -503,15 +483,11 @@
         // 문법 변형 활동
         else if (act.type === "문법 변형 활동" && act.examples) {
           act.examples.forEach((ex, i) => {
-            // ex => { instruction, original, answer?}
-            const len = Math.round(ex.original.length*1.2);
-            let line="";
-            for(let k=0;k<len;k++){ line+="_"; }
             html += `
               <p style="margin-bottom:10px;">
                 ${i+1}) [${ex.instruction}]<br/>
                 원문: ${ex.original}
-                <br/>변형: ${line}
+                <br/>${fullLine}
               </p>
             `;
             if(ex.answer) {
@@ -528,7 +504,6 @@
         }
       });
 
-      // 만약 showAnswers=false
       if(!showAnswers){
         html += `
           <div style="margin-top:20px;">
@@ -543,6 +518,8 @@
       }
       else {
         // showAnswers=true
+        // 정답만 표시된 상태
+        // 인쇄버튼
         html += `
           <div style="margin-top:20px;">
             <button onclick="printPage()">
@@ -550,12 +527,19 @@
             </button>
           </div>
         `;
+        // 표시 실제 정답들
+        if(totalAnswers.length>0){
+          html += `<hr/><h4>정답 모음</h4><pre>`;
+          totalAnswers.forEach(ans => {
+            html += ans + "\n";
+          });
+          html += `</pre>`;
+        }
       }
 
       outputDiv.innerHTML = html;
     }
 
-    // 정답 버튼 클릭 시
     function showActivityAnswers() {
       renderActivity(true);
     }
@@ -570,7 +554,7 @@
     window.renderActivity = renderActivity;
   </script>
 </head>
-<body>
+<body onload="showSection('upload')">
   <div class="container">
     <h1>영어 독해 문제 생성기</h1>
     <div class="tabs">
@@ -619,23 +603,31 @@
       <h2><i class="far fa-eye"></i> 문제 확인</h2>
       <div id="pdf-content">
         <form id="question-form">
-          <!-- 동적으로 생성된 문제들 표시 (generateQuestion) -->
+          <!-- 문제들 표시 -->
         </form>
       </div>
       <div style="margin-top:20px;">
-        <button type="button" onclick="showAnswersAndExplanations()"><i class="fas fa-info-circle"></i> 정답 및 해설</button>
-        <button type="button" onclick="showKoreanTranslation()"><i class="fas fa-language"></i> 국문 해석</button>
+        <button type="button" onclick="showAnswersAndExplanations()">
+          <i class="fas fa-info-circle"></i> 정답 및 해설
+        </button>
+        <button type="button" onclick="showKoreanTranslation()">
+          <i class="fas fa-language"></i> 국문 해석
+        </button>
       </div>
       <div id="answer-section" style="margin-top: 20px; display: none;">
         <h3>정답 및 해설</h3>
         <pre id="answers"></pre>
         <pre id="explanations"></pre>
-        <button onclick="printPage()" style="margin-top:10px;"><i class="fas fa-print"></i> 웹 페이지 인쇄</button>
+        <button onclick="printPage()" style="margin-top:10px;">
+          <i class="fas fa-print"></i> 웹 페이지 인쇄
+        </button>
       </div>
       <div id="korean-section" style="margin-top: 20px; display: none;">
         <h3>국문 해석</h3>
         <pre id="korean-translation"></pre>
-        <button onclick="printPage()" style="margin-top:10px;"><i class="fas fa-print"></i> 웹 페이지 인쇄</button>
+        <button onclick="printPage()" style="margin-top:10px;">
+          <i class="fas fa-print"></i> 웹 페이지 인쇄
+        </button>
       </div>
     </div>
 
@@ -651,7 +643,9 @@
         <label><input type="checkbox" class="activity-type" value="문법 변형 활동"> 문법 변형 활동</label><br/>
       </div>
       <button onclick="generateActivity()"><i class="fas fa-play"></i> 활동 생성</button>
-      <div id="activity-loading-indicator">활동 생성 중... <i class="fas fa-hourglass-half"></i></div>
+      <div id="activity-loading-indicator">
+        활동 생성 중... <i class="fas fa-hourglass-half"></i>
+      </div>
     </div>
 
     <!-- 활동 확인 섹션 -->
