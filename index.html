@@ -132,6 +132,27 @@
       .container {
         box-shadow: none;
       }
+/* 1. 페이지에서 문항 잘림 방지 */
+      #question-form .question-block {
+        break-inside: avoid; /* 최신 표준 */
+        page-break-inside: avoid; /* 이전 표준 (호환성) */
+      }
+
+      /* 2. '정답 및 해설', '국문 해석' 섹션 무조건 다음 페이지에서 시작 */
+      #answer-section,
+      #korean-section {
+        break-before: always; /* 최신 표준 */
+        page-break-before: always; /* 이전 표준 (호환성) */
+      }
+
+      /*         혹시 이 섹션들이 display: none 상태일 때도 인쇄되도록 강제하려면 아래 규칙 추가
+        (단, 사용자가 '정답 및 해설' 버튼을 누른 상태에서 인쇄해야 함에 유의)
+      */
+      #answer-section,
+      #korean-section {
+        display: block !important; 
+        visibility: visible !important;
+      }    
     }
 
     /* 반응형 처리 (예: 화면너비 600px 이하) */
