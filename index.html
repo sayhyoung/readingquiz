@@ -380,7 +380,9 @@
           qDiv.appendChild(numP);
 
           const bodyP = document.createElement("p");
-          bodyP.textContent = bodyText;
+         // bodyP.textContent = bodyText;
+           bodyP.innerHTML = bodyText;
+          
           qDiv.appendChild(bodyP);
 
           if (q.choices) {
